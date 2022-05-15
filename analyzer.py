@@ -12,6 +12,6 @@ pros_count = opinions.pros["pros"].astype(bool).sum()
 cons_count = opinions.pros["pros"].astype(bool).sum()  
 average_score = opinions["stars"].mean().round(2)
       
-recommendations = opinions["recommendation"].valu_counts()
+recommendations = opinions["recommendation"].valu_counts(dropna=False)
 recommedations.plot.pie()
 print(pros_count)
