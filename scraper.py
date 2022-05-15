@@ -1,63 +1,63 @@
-import requests
 import json
+import requests
 from bs4 import BeautifulSoup
 
-url = "https://www.ceneo.pl/95365253#tab=reviews"
-response = requests.get(url)
+def extract_element(ancestor, selector, attribute=None, extract_list=False):
+    try:
+        if extract_list:
+            return ", ".join([item.text.strip() for item in ancestor.select(selector)])
+        if attribute:
+            return ancestor.select(selector).pop(0)[attribute].strip()
+        return ancestor.select(selector).pop(0).text.strip()
+    except IndexError: return None
 
-page_dom = BeautifulSoup(response.text, 'html.parser')
+selectors = {
+    "author": ["span.user-post__author-name"],
+    "recommendation": ["span.user-post__author-recomendation > em"],
+    "stars": ["span.user-post__score-count"],
+    "content": ["div.user-post__text"],
+    "publish_date": ["span.user-post__published > time:nth-child(1)", "datetime"], 
+    "purchase_date": ["span.user-post__published > time:nth-child(2)", "datetime"],
+    "useful": ["span[id^=votes-yes]"],
+    "useless": ["span[id^=votes-no]"],
+    "pros": ["div.review-feature__title--positives ~ div.review-feature__item", None, True],
+    "cons": ["div.review-feature__title--negatives ~ div.review-feature__item", None, True]
+}
 
-reviews = page_dom.select("div.js_product-review")
-
+product_id = input("Podaj identyfokator produktu: ")
+url_pre = "https://www.ceneo.pl/"
+url_post = "/opinie-"
+page_no = 1
 all_reviews = []
 
-for review in reviews:
-    review = reviews.pop(6)
+while(page_no):
+    url = url_pre+product_id+url_post+str(page_no)
+    response = requests.get(url, allow_redirects=False)
+    if response.status_code == requests.codes.ok: 
+        page_dom = BeautifulSoup(response.text, 'html.parser')
+        reviews = page_dom.select("div.js_product-review")
+        for review in reviews: 
+            single_review = {
+                key: extract_element(review, *value)
+                    for key, value in selectors.items()
+            }
 
-    review_id = review["data-entry-id"]
+            single_review["review_id"] = review["data-entry-id"]
+            single_review["recommendation"] = True if single_review["recommendation"] == "Polecam" else False if single_review["recommendation"] == "Nie polecam" else None
+            single_review["stars"] = float(single_review["stars"].split("/").pop(0).replace(",", "."))
+            single_review["content"] = single_review["content"].replace("\n", " ").replace("  ", " ").strip()
+            single_review["publish_date"] = single_review["publish_date"].split(" ").pop(0)
+            try:
+                single_review["purchase_date"] = single_review["purchase_date"].split(" ").pop(0)
+            except AttributeError:
+                single_review["purchase_date"] = None
+            single_review["useful"] = int(single_review["useful"])
+            single_review["useless"] = int(single_review["useless"])
 
-    author= review.select("span.user-post__author-name").pop(0).text.strip()
+            all_reviews.append(single_review)
+        page_no += 1
+    else: page_no = None
 
-    recommenadtion = review.select("span.user-post__author-recomendation").pop(0).text
-
-    recommenadtion = True if recommenadtion == "Polecam" else False if recommenadtion == "Nie Polecam" else None
-
-    stars = review.select("span.user-post__score-count").pop(0).text
-    stars = float(stars.split("/").pop(0).replace(",","."))
-
-    content = review.select("div.user-post__text").pop(0).text
-
-    content = content.replace("\n", " ")
-
-    publish_date = review.select("span.user-post__published > time:nth-child(1)").pop(0)["datetime"]
-
-    purchase_date = review.select("span.user-post__published > time:nth-child(2)").pop(0)["datetime"]
-
-    useful = review.select("span[id^=votes-yes]").pop(0).text
-    useful=int(useful)
-
-    useless = review.select("span[id^=votes-no]").pop(0).text
-    useless=int(useless)
-
-    Positives_list= review.select("div.review-feature__title--positives ~ div.review-feature__item")
-
-
-    Negatives_list = review.select("div.review-feature__title--negatives ~ div.review-feature__item")
-
-    single_review = {
-        "review_id": review_id,
-        "author": author,
-        "reccomendation": recommenadtion,
-        "stars": stars,
-        "content": content,
-        "publish_date": publish_date,
-        "purchase_date": purchase_date,
-        "useful": useful,
-        "useless": useless,
-        "Positives_list": Positives_list,
-        "Negatives_list": Negatives_list
-
-    }
-    all_reviews.append(single_review)
-    print(json.dumps(single_review, indent=4, ensure_ascii=False))
+f = open("reviews/"+product_id+".json", "w", encoding="UTF-8")
+json.dump(all_reviews, f, indent=4, ensure_ascii=False)
 
