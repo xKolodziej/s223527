@@ -12,6 +12,13 @@ pros_count = opinions.pros["pros"].astype(bool).sum()
 cons_count = opinions.pros["pros"].astype(bool).sum()  
 average_score = opinions["stars"].mean().round(2)
       
-recommendations = opinions["recommendation"].valu_counts(dropna=False)
-recommedations.plot.pie()
-print(pros_count)
+recommendations = opinions["recommendation"].value_counts(dropna=False).sort_index().reindex([False, True, None], fill_value=0)
+recommendations.plot.pie(
+    autopct = "%.1f%%",
+    label = "",
+    title = "Rekomendacje",
+    labels = ["Nie polecam", "Polecam", "Nie mam zdania"],
+    colors = ["crimson", "forestgreen", "lightskyblue"]
+)
+plt.savefig("plots/"+product_id+"_recommendations.png")
+plt.close() 
